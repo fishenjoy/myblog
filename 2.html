@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Task Management</title>
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+.container {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.column {
+    flex: 1;
+    border: 1px solid #ccc;
+    margin: 10px;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    min-width: 250px;
+    position: relative;
+    transition: background-color 0.3s ease;
+}
+
+.column.dragging {
+    background-color: #e0f7fa;
+}
+
+h2 {
+    margin: 0 0 10px;
+    font-size: 20px;
+    color: #333;
+    cursor: pointer;
+}
+
+.task {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: grab;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.task.dragging {
+    opacity: 0.5;
+}
+
+.sub-tasks {
+    margin-top: 10px;
+    padding-left: 20px;
+}
+
+.sub-task {
+    margin-top: 5px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    background-color: #fff;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: grab;
+}
+
+.sub-task.dragging {
+    opacity: 0.5;
+}
+
+input[type="text"], input[type="file"] {
+    width: 70%;
+    padding: 8px;
+    margin-right: 10px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+button {
+    padding: 8px 16px;
+    border: none;
+    background-color: #007bff;
+    color: #fff;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+button.delete-column {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #dc3545;
+}
+
+button.delete-column:hover {
+    background-color: #b02a37;
+}
+
+button.edit-column {
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    background-color: #ffc107;
+}
+
+button.edit-column:hover {
+    background-color: #e0a800;
+}
+</style>
+</head>
+<body>
+
+<div class="container" id="board">
+    <div class="column" id="todo-column" draggable="true" ondragstart="dragColumn(event)" ondragover="allowDropColumn(event)" ondrop="dropColumn(event)">
+        <button class="delete-column" onclick="deleteColumn('todo-column')">Delete</button>
+        <button class="edit-column" onclick="editColumnName('todo-column')">Edit</button>
+        <h2>To Do</h2>
+        <div id="todo-tasks" class="task-container" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+        <input type="text" id="new-task-todo" placeholder="Add a new task">
+        <input type="file" id="file-upload-todo">
+        <button onclick="addTask('todo')">Add Task</button>
+    </div>
+
+    <div class="column" id="in-progress-column" draggable="true" ondragstart="dragColumn(event)" ondragover="allowDropColumn(event)" ondrop="dropColumn(event)">
+        <button class="delete-column" onclick="deleteColumn('in-progress-column')">Delete</button>
+        <button class="edit-column" onclick="editColumnName('in-progress-column')">Edit</button>
+        <h2>In Progress</h2>
+        <div id="in-progress-tasks" class="task-container" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+        <input type="text" id="new-task-in-progress" placeholder="Add a new task">
+        <input type="file" id="file-upload-in-progress">
+        <button onclick="addTask('in-progress')">Add Task</button>
+    </div>
+
+    <div class="column" id="done-column" draggable="true" ondragstart="dragColumn(event)" ondragover="allowDropColumn(event)" ondrop="dropColumn(event)">
+        <button class="delete-column" onclick="deleteColumn('done-column')">Delete</button>
+        <button class="edit-column" onclick="editColumnName('done-column')">Edit</button>
+        <h2>Done</h2>
+        <div id="done-tasks" class="task-container" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+        <input type="text" id="new-task-done" placeholder="Add a new task">
+        <input type="file" id="file-upload-done">
+        <button onclick="addTask('done')">Add Task</button>
+    </div>
+</div>
+
+<div>
+    <label for="new-column-name">Add a new column:</label>
+    <input type="text" id="new-column-name">
+    <button onclick="addColumn()">Add Column</button>
+</div>
+
+<button onclick="saveTasksToLocalFile()">Save Tasks</button>
+<button onclick="loadTasksFromLocalFile()">Load Tasks</button>
+
+<script>
+let draggedElement = null;
+
+function allowDrop(event) {
+    event.preventDefault();
+}
+
+function drag(event) {
+    draggedElement = event.target;
+    event.dataTransfer.effectAllowed = "move";
+}
+
+function drop(event) {
+    event.preventDefault();
+    const target = event.target.closest(".task-container, .sub-tasks");
+    if (target && draggedElement) {
+        target.appendChild(draggedElement);
+        saveTasks();
+    }
+}
+
+function dragColumn(event) {
+    draggedElement = event.target;
+}
+
+function dropColumn(event) {
+    event.preventDefault();
+    const board = document.getElementById("board");
+    const targetColumn = event.target.closest(".column");
+    if (board && targetColumn && draggedElement) {
+        board.insertBefore(draggedElement, targetColumn.nextSibling);
+        saveTasks();
+    }
+}
+
+function allowDropColumn(event) {
+    event.preventDefault();
+}
+
+function addTask(column) {
+    const taskName = document.getElementById(`new-task-${column}`).value;
+    const fileInput = document.getElementById(`file-upload-${column}`);
+    const file = fileInput.files[0];
+
+    if (taskName) {
+        const task = createTaskElement(taskName, file);
+        document.getElementById(`${column}-tasks`).appendChild(task);
+
+        document.getElementById(`new-task-${column}`).value = "";
+        fileInput.value = "";
+        saveTasks();
+    } else {
+        alert("Please enter a task name.");
+    }
+}
+
+function createTaskElement(taskName, file = null) {
+    const task = document.createElement("div");
+    task.className = "task";
+    task.draggable = true;
+    task.ondragstart = drag;
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.addEventListener("change", function () {
+        if (checkbox.checked) {
+            task.remove();
+            saveTasks();
+        }
+    });
+
+    const taskContent = document.createElement("span");
+    taskContent.textContent = taskName;
+    taskContent.contentEditable = true;
+    taskContent.addEventListener("blur", saveTasks);
+
+    const fileLink = document.createElement("a");
+    if (file) {
+        fileLink.textContent = ` (${file.name})`;
+        fileLink.href = URL.createObjectURL(file);
+        fileLink.download = file.name;
+    }
+
+    const subTasks = document.createElement("div");
+    subTasks.className = "sub-tasks";
+    subTasks.ondragover = allowDrop;
+    subTasks.ondrop = drop;
+
+    const subTaskInput = document.createElement("input");
+    subTaskInput.type = "text";
+    subTaskInput.placeholder = "Add a new sub-task";
+
+    const subTaskFileInput = document.createElement("input");
+    subTaskFileInput.type = "file";
+
+    const addSubTaskButton = document.createElement("button");
+    addSubTaskButton.textContent = "Add Sub-task";
+    addSubTaskButton.onclick = function () {
+        const subTaskName = subTaskInput.value;
+        const subTaskFile = subTaskFileInput.files[0];
+        if (subTaskName) {
+            const subTask = createSubTaskElement(subTaskName, subTaskFile);
+            subTasks.appendChild(subTask);
+
+            subTaskInput.value = "";
+            subTaskFileInput.value = "";
+            saveTasks();
+        }
+    };
+
+    task.appendChild(checkbox);
+    task.appendChild(taskContent);
+    if (fileLink) task.appendChild(fileLink);
+    task.appendChild(subTasks);
+    task.appendChild(subTaskInput);
+    task.appendChild(subTaskFileInput);
+    task.appendChild(addSubTaskButton);
+
+    return task;
+}
+
+function createSubTaskElement(subTaskName, file = null) {
+    const subTask = document.createElement("div");
+    subTask.className = "sub-task";
+    subTask.draggable = true;
+    subTask.ondragstart = drag;
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.addEventListener("change", function () {
+        if (checkbox.checked) {
+            subTask.remove();
+            saveTasks();
+        }
+    });
+
+    const subTaskContent = document.createElement("span");
+    subTaskContent.textContent = subTaskName;
+    subTaskContent.contentEditable = true;
+    subTaskContent.addEventListener("blur", saveTasks);
+
+    const fileLink = document.createElement("a");
+    if (file) {
+        fileLink.textContent = ` (${file.name})`;
+        fileLink.href = URL.createObjectURL(file);
+        fileLink.download = file.name;
+    }
+
+    subTask.appendChild(checkbox);
+    subTask.appendChild(subTaskContent);
+    if (fileLink) subTask.appendChild(fileLink);
+
+    return subTask;
+}
+
+function addColumn() {
+    const columnName = document.getElementById("new-column-name").value.trim();
+    if (columnName) {
+        const columnId = columnName.toLowerCase().replace(/ /g, "-");
+        const column = document.createElement("div");
+        column.className = "column";
+        column.id = columnId;
+        column.draggable = true;
+        column.ondragstart = dragColumn;
+        column.ondragover = allowDropColumn;
+        column.ondrop = dropColumn;
+
+        column.innerHTML = `
+            <button class="delete-column" onclick="deleteColumn('${columnId}')">Delete</button>
+            <button class="edit-column" onclick="editColumnName('${columnId}')">Edit</button>
+            <h2>${columnName}</h2>
+            <div id="${columnId}-tasks" class="task-container" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+            <input type="text" id="new-task-${columnId}" placeholder="Add a new task">
+            <input type="file" id="file-upload-${columnId}">
+            <button onclick="addTask('${columnId}')">Add Task</button>
+        `;
+
+        document.getElementById("board").appendChild(column);
+        document.getElementById("new-column-name").value = "";
+        saveTasks();
+    } else {
+        alert("Please enter a column name.");
+    }
+}
+
+function deleteColumn(columnId) {
+    if (confirm("Are you sure you want to delete this column?")) {
+        document.getElementById(columnId).remove();
+        saveTasks();
+    }
+}
+
+function editColumnName(columnId) {
+    const column = document.getElementById(columnId);
+    const newName = prompt("Enter new column name:", column.querySelector("h2").textContent);
+    if (newName) {
+        column.querySelector("h2").textContent = newName;
+        saveTasks();
+    }
+}
+
+function saveTasks() {
+    localStorage.setItem("boardData", document.getElementById("board").innerHTML);
+}
+
+function saveTasksToLocalFile() {
+    const boardData = document.getElementById("board").innerHTML;
+    const blob = new Blob([boardData], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tasks.html";
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function loadTasksFromLocalFile() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".html";
+    input.onchange = function (e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = function () {
+            document.getElementById("board").innerHTML = reader.result;
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+window.onload = function () {
+    const savedBoard = localStorage.getItem("boardData");
+    if (savedBoard) {
+        document.getElementById("board").innerHTML = savedBoard;
+    }
+};
+</script>
+
+</body>
+</html>
